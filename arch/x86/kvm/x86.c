@@ -5557,7 +5557,7 @@ static int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
 	unsigned long val;
 	unsigned int i;
 
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -5578,7 +5578,7 @@ static int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
 {
 	unsigned int i;
 
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -5621,7 +5621,7 @@ static int kvm_vcpu_ioctl_x86_get_xsave2(struct kvm_vcpu *vcpu,
 			     XFEATURE_MASK_FPSSE;
 
 	if (fpstate_is_confidential(&vcpu->arch.guest_fpu))
-		return vcpu->kvm->arch.has_protected_state ? -EINVAL : 0;
+		return vcpu->kvm->has_protected_state ? -EINVAL : 0;
 
 	fpu_copy_guest_fpstate_to_uabi(&vcpu->arch.guest_fpu, state, size,
 				       supported_xcr0, vcpu->arch.pkru);
@@ -5639,7 +5639,7 @@ static int kvm_vcpu_ioctl_x86_set_xsave(struct kvm_vcpu *vcpu,
 					struct kvm_xsave *guest_xsave)
 {
 	if (fpstate_is_confidential(&vcpu->arch.guest_fpu))
-		return vcpu->kvm->arch.has_protected_state ? -EINVAL : 0;
+		return vcpu->kvm->has_protected_state ? -EINVAL : 0;
 
 	return fpu_copy_uabi_to_guest_fpstate(&vcpu->arch.guest_fpu,
 					      guest_xsave->region,
@@ -5650,7 +5650,7 @@ static int kvm_vcpu_ioctl_x86_set_xsave(struct kvm_vcpu *vcpu,
 static int kvm_vcpu_ioctl_x86_get_xcrs(struct kvm_vcpu *vcpu,
 				       struct kvm_xcrs *guest_xcrs)
 {
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -5671,7 +5671,7 @@ static int kvm_vcpu_ioctl_x86_set_xcrs(struct kvm_vcpu *vcpu,
 {
 	int i, r = 0;
 
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -6285,7 +6285,7 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 #endif
 	case KVM_GET_SREGS2: {
 		r = -EINVAL;
-		if (vcpu->kvm->arch.has_protected_state &&
+		if (vcpu->kvm->has_protected_state &&
 		    vcpu->arch.guest_state_protected)
 			goto out;
 
@@ -6302,7 +6302,7 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 	}
 	case KVM_SET_SREGS2: {
 		r = -EINVAL;
-		if (vcpu->kvm->arch.has_protected_state &&
+		if (vcpu->kvm->has_protected_state &&
 		    vcpu->arch.guest_state_protected)
 			goto out;
 
@@ -11549,7 +11549,7 @@ static void __get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 
 int kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 {
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -11594,7 +11594,7 @@ static void __set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 
 int kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 {
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -11670,7 +11670,7 @@ static void __get_sregs2(struct kvm_vcpu *vcpu, struct kvm_sregs2 *sregs2)
 int kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu,
 				  struct kvm_sregs *sregs)
 {
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -11941,7 +11941,7 @@ int kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu,
 {
 	int ret;
 
-	if (vcpu->kvm->arch.has_protected_state &&
+	if (vcpu->kvm->has_protected_state &&
 	    vcpu->arch.guest_state_protected)
 		return -EINVAL;
 
@@ -12062,7 +12062,7 @@ int kvm_arch_vcpu_ioctl_get_fpu(struct kvm_vcpu *vcpu, struct kvm_fpu *fpu)
 	struct fxregs_state *fxsave;
 
 	if (fpstate_is_confidential(&vcpu->arch.guest_fpu))
-		return vcpu->kvm->arch.has_protected_state ? -EINVAL : 0;
+		return vcpu->kvm->has_protected_state ? -EINVAL : 0;
 
 	vcpu_load(vcpu);
 
@@ -12085,7 +12085,7 @@ int kvm_arch_vcpu_ioctl_set_fpu(struct kvm_vcpu *vcpu, struct kvm_fpu *fpu)
 	struct fxregs_state *fxsave;
 
 	if (fpstate_is_confidential(&vcpu->arch.guest_fpu))
-		return vcpu->kvm->arch.has_protected_state ? -EINVAL : 0;
+		return vcpu->kvm->has_protected_state ? -EINVAL : 0;
 
 	vcpu_load(vcpu);
 
@@ -12634,7 +12634,7 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 		return -EINVAL;
 
 	kvm->arch.vm_type = type;
-	kvm->arch.has_private_mem =
+	kvm->has_private_mem =
 		(type == KVM_X86_SW_PROTECTED_VM);
 
 	ret = kvm_page_track_init(kvm);

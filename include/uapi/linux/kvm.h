@@ -553,8 +553,10 @@ struct kvm_run {
 			__u64 gpa;
 			__u64 size;
 		} memory_fault;
+#ifndef __GENKSYMS__
 		/* KVM_EXIT_VMGEXIT */
 		struct kvm_user_vmgexit vmgexit;
+#endif
 		/* Fix the size of the union. */
 		char padding[256];
 	};

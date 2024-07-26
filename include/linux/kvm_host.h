@@ -842,6 +842,11 @@ struct kvm {
 	struct xarray mem_attr_array;
 #endif
 	char stats_id[KVM_STATS_NAME_SIZE];
+
+#ifndef __GENKSYMS__
+	bool has_private_mem;
+	bool has_protected_state;
+#endif
 };
 
 #define kvm_err(fmt, ...) \

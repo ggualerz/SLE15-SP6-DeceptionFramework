@@ -91,6 +91,7 @@ enum cc_attr {
 	 */
 	CC_ATTR_HOTPLUG_DISABLED,
 
+#ifndef __GENKSYMS__
 	/**
 	 * @CC_ATTR_HOST_SEV_SNP: AMD SNP enabled on the host.
 	 *
@@ -98,6 +99,7 @@ enum cc_attr {
 	 * enabled to run SEV-SNP guests.
 	 */
 	CC_ATTR_HOST_SEV_SNP,
+#endif
 };
 
 #ifdef CONFIG_ARCH_HAS_CC_PLATFORM
