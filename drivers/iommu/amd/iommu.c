@@ -2112,6 +2112,8 @@ static int protection_domain_init_v1(struct protection_domain *domain, int mode)
 			return -ENOMEM;
 	}
 
+	domain->domain.pgsize_bitmap = amd_iommu_pgsize_bitmap;
+
 	amd_iommu_domain_set_pgtable(domain, pt_root, mode);
 
 	return 0;

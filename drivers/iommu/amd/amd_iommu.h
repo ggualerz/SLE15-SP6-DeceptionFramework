@@ -37,6 +37,7 @@ int amd_iommu_enable_faulting(unsigned int cpu);
 extern int amd_iommu_guest_ir;
 extern enum io_pgtable_fmt amd_iommu_pgtable;
 extern int amd_iommu_gpt_level;
+extern unsigned long amd_iommu_pgsize_bitmap;
 
 bool amd_iommu_v2_supported(void);
 struct amd_iommu *get_amd_iommu(unsigned int idx);
