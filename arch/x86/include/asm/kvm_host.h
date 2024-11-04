@@ -1824,6 +1824,8 @@ struct kvm_x86_ops {
 	const bool x2apic_icr_is_split;
 	int (*max_vcpus)(struct kvm *kvm);
 	int (*vm_enable_cap)(struct kvm *kvm, struct kvm_enable_cap *cap);
+	void (*flush_shadow_all_private)(struct kvm *kvm);
+	void (*vm_free)(struct kvm *kvm);
 #endif
 };
 
