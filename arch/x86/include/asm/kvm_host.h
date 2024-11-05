@@ -1818,6 +1818,7 @@ struct kvm_x86_ops {
 
 #ifndef __GENKSYMS__
 	int (*dev_get_attr)(u32 group, u64 attr, u64 *val);
+	int (*vcpu_mem_enc_ioctl)(struct kvm_vcpu *vcpu, void __user *argp);
 	int (*gmem_prepare)(struct kvm *kvm, kvm_pfn_t pfn, gfn_t gfn, int max_order);
 	void (*gmem_invalidate)(kvm_pfn_t start, kvm_pfn_t end);
 	int (*private_max_mapping_level)(struct kvm *kvm, kvm_pfn_t pfn);
