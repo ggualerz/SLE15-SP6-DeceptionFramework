@@ -1835,7 +1835,7 @@ struct kvm_x86_ops {
 	int (*vcpu_mem_enc_ioctl)(struct kvm_vcpu *vcpu, void __user *argp);
 	int (*gmem_prepare)(struct kvm *kvm, kvm_pfn_t pfn, gfn_t gfn, int max_order);
 	void (*gmem_invalidate)(kvm_pfn_t start, kvm_pfn_t end);
-	int (*private_max_mapping_level)(struct kvm *kvm, kvm_pfn_t pfn);
+	int (*private_max_mapping_level)(struct kvm *kvm, kvm_pfn_t pfn, gfn_t gfn, bool is_private, u8 *max_level);
 	const bool x2apic_icr_is_split;
 	int (*offline_cpu)(void);
 	int (*max_vcpus)(struct kvm *kvm);
