@@ -1873,6 +1873,7 @@ struct kvm_x86_ops {
 	int (*zap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
 	bool (*protected_apic_has_interrupt)(struct kvm_vcpu *vcpu);
 	void (*vcpu_deliver_init)(struct kvm_vcpu *vcpu);
+	int (*vcpu_check_cpuid)(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2 *e2, int nent);
 #endif
 };
 
