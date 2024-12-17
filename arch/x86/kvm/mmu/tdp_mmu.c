@@ -970,7 +970,7 @@ static bool tdp_mmu_zap_leafs(struct kvm *kvm, struct kvm_mmu_page *root,
 
 	WARN_ON_ONCE(zap_private && !is_private_sp(root));
 	if (!zap_private && is_private_sp(root))
-		return false;
+		return flush;
 
 	/*
 	 * start and end doesn't have GFN shared bit.  This function zaps
