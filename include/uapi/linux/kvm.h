@@ -2461,7 +2461,7 @@ struct kvm_pre_fault_memory {
 	__u64 padding[5];
 };
 
-#define KVM_MEMORY_MAPPING	_IOWR(KVMIO, 0xd5, struct kvm_memory_mapping)
+#define KVM_MEMORY_MAPPING	_IOWR(KVMIO, 0xd6, struct kvm_memory_mapping)
 
 struct kvm_memory_mapping {
 	__u64 base_gfn;
