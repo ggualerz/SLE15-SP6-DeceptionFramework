@@ -3740,18 +3740,20 @@ static int mmu_alloc_direct_roots(struct kvm_vcpu *vcpu)
 	unsigned i;
 	int r;
 
+	if (tdp_mmu_enabled) {
+		if (kvm_gfn_shared_mask(vcpu->kvm) &&
+		    !VALID_PAGE(mmu->private_root_hpa))
+			kvm_tdp_mmu_alloc_root(vcpu, true);
+
+		kvm_tdp_mmu_alloc_root(vcpu, false);
+	}
+
 	write_lock(&vcpu->kvm->mmu_lock);
 	r = make_mmu_pages_available(vcpu);
 	if (r < 0)
 		goto out_unlock;
 
-	if (tdp_mmu_enabled) {
-		if (kvm_gfn_shared_mask(vcpu->kvm) &&
-		    !VALID_PAGE(mmu->private_root_hpa))
-			mmu->private_root_hpa = kvm_tdp_mmu_get_vcpu_root_hpa(vcpu, true);
-
-		mmu->root.hpa = kvm_tdp_mmu_get_vcpu_root_hpa(vcpu, false);
-	} else if (shadow_root_level >= PT64_ROOT_4LEVEL) {
+	if (shadow_root_level >= PT64_ROOT_4LEVEL) {
 		root = mmu_alloc_root(vcpu, 0, 0, shadow_root_level);
 		mmu->root.hpa = root;
 	} else if (shadow_root_level == PT32E_ROOT_LEVEL) {
