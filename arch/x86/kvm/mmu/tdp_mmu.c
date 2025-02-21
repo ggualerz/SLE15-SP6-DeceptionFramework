@@ -671,26 +671,8 @@ static int __must_check set_private_spte_present(struct kvm *kvm, tdp_ptep_t spt
 	return ret;
 }
 
-/*
- * tdp_mmu_set_spte_atomic - Set a TDP MMU SPTE atomically
- * and handle the associated bookkeeping.  Do not mark the page dirty
- * in KVM's dirty bitmaps.
- *
- * If setting the SPTE fails because it has changed, iter->old_spte will be
- * refreshed to the current value of the spte.
- *
- * @kvm: kvm instance
- * @iter: a tdp_iter instance currently on the SPTE that should be set
- * @new_spte: The value the SPTE should be set to
- * Return:
- * * 0      - If the SPTE was set.
- * * -EBUSY - If the SPTE cannot be set. In this case this function will have
- *            no side-effects other than setting iter->old_spte to the last
- *            known value of the spte.
- */
-static inline int tdp_mmu_set_spte_atomic(struct kvm *kvm,
-					  struct tdp_iter *iter,
-					  u64 new_spte)
+static inline int __tdp_mmu_set_spte_atomic(struct kvm *kvm,
+					struct tdp_iter *iter, u64 new_spte)
 {
 	u64 *sptep = rcu_dereference(iter->sptep);
 
@@ -701,8 +683,6 @@ static inline int tdp_mmu_set_spte_atomic(struct kvm *kvm,
 	 * avoids unnecessary work.
 	 */
 	WARN_ON_ONCE(iter->yielded || is_removed_spte(iter->old_spte));
-
-	lockdep_assert_held_read(&kvm->mmu_lock);
 
 	if (is_private_sptep(iter->sptep) && !is_removed_spte(new_spte)) {
 		int ret;
@@ -737,6 +717,39 @@ static inline int tdp_mmu_set_spte_atomic(struct kvm *kvm,
 			return -EBUSY;
 	}
 
+	return 0;
+}
+
+/*
+ * tdp_mmu_set_spte_atomic - Set a TDP MMU SPTE atomically
+ * and handle the associated bookkeeping.  Do not mark the page dirty
+ * in KVM's dirty bitmaps.
+ *
+ * If setting the SPTE fails because it has changed, iter->old_spte will be
+ * refreshed to the current value of the spte.
+ *
+ * @kvm: kvm instance
+ * @iter: a tdp_iter instance currently on the SPTE that should be set
+ * @new_spte: The value the SPTE should be set to
+ * Return:
+ * * 0      - If the SPTE was set.
+ * * -EBUSY - If the SPTE cannot be set. In this case this function will have
+ *            no side-effects other than setting iter->old_spte to the last
+ *            known value of the spte.
+ */
+static inline int tdp_mmu_set_spte_atomic(struct kvm *kvm,
+					  struct tdp_iter *iter,
+					  u64 new_spte)
+{
+	int ret;
+ 	u64 *sptep = rcu_dereference(iter->sptep);
+
+	lockdep_assert_held_read(&kvm->mmu_lock);
+
+	ret = __tdp_mmu_set_spte_atomic(kvm, iter, new_spte);
+	if (ret)
+		return ret;
+
 	handle_changed_spte(kvm, iter->as_id, iter->gfn, iter->old_spte,
 			    new_spte, sptep_to_sp(sptep)->role, true);
 
@@ -750,16 +763,20 @@ static inline int tdp_mmu_set_spte_atomic(struct kvm *kvm,
 static inline int tdp_mmu_zap_spte_atomic(struct kvm *kvm,
 					  struct tdp_iter *iter)
 {
- 	u64 *sptep = rcu_dereference(iter->sptep);
+	u64 *sptep = rcu_dereference(iter->sptep);
 	int ret;
 
+	lockdep_assert_held_read(&kvm->mmu_lock);
+
 	/*
-	 * Freeze the SPTE by setting it to a special,
-	 * non-present value. This will stop other threads from
-	 * immediately installing a present entry in its place
-	 * before the TLBs are flushed.
+	 * Freeze the SPTE by setting it to a special, non-present value. This
+	 * will stop other threads from immediately installing a present entry
+	 * in its place before the TLBs are flushed.
+	 *
+	 * Delay processing of the zapped SPTE until after TLBs are flushed and
+	 * the REMOVED_SPTE is replaced (see below).
 	 */
-	ret = tdp_mmu_set_spte_atomic(kvm, iter, REMOVED_SPTE);
+	ret = __tdp_mmu_set_spte_atomic(kvm, iter, REMOVED_SPTE);
 	if (ret)
 		return ret;
 
@@ -768,12 +785,20 @@ static inline int tdp_mmu_zap_spte_atomic(struct kvm *kvm,
 	/*
 	 * No other thread can overwrite the removed SPTE as they must either
 	 * wait on the MMU lock or use tdp_mmu_set_spte_atomic() which will not
-	 * overwrite the special removed SPTE value. No bookkeeping is needed
-	 * here since the SPTE is going from non-present to non-present.  Use
-	 * the raw write helper to avoid an unnecessary check on volatile bits.
+	 * overwrite the special removed SPTE value. Use the raw write helper to
+	 * avoid an unnecessary check on volatile bits.
 	 */
 //	__kvm_tdp_mmu_write_spte(iter->sptep, SHADOW_NONPRESENT_VALUE);
 	__kvm_tdp_mmu_write_spte(sptep, SHADOW_NONPRESENT_VALUE);
+
+	/*
+	 * Process the zapped SPTE after flushing TLBs, and after replacing
+	 * REMOVED_SPTE with 0. This minimizes the amount of time vCPUs are
+	 * blocked by the REMOVED_SPTE and reduces contention on the child
+	 * SPTEs.
+	 */
+	handle_changed_spte(kvm, iter->as_id, iter->gfn, iter->old_spte,
+			    SHADOW_NONPRESENT_VALUE, sptep_to_sp(sptep)->role, true);
 
 	return 0;
 }
