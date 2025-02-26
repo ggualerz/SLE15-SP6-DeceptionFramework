@@ -3760,6 +3760,7 @@ static int mmu_alloc_direct_roots(struct kvm_vcpu *vcpu)
 			kvm_tdp_mmu_alloc_root(vcpu, true);
 
 		kvm_tdp_mmu_alloc_root(vcpu, false);
+		return 0;
 	}
 
 	write_lock(&vcpu->kvm->mmu_lock);
