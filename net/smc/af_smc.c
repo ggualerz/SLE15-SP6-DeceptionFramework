@@ -390,6 +390,7 @@ static struct sock *smc_sock_alloc(struct net *net, struct socket *sock,
 	sk->sk_prot->hash(sk);
 	mutex_init(&smc->clcsock_release_lock);
 	smc_init_saved_callbacks(smc);
+	smc_close_init(smc);
 
 	return sk;
 }
@@ -1892,6 +1893,7 @@ static void smc_listen_out(struct smc_sock *new_smc)
 	if (tcp_sk(new_smc->clcsock->sk)->syn_smc)
 		atomic_dec(&lsmc->queued_smc_hs);
 
+	release_sock(newsmcsk); /* lock in smc_listen_work() */
 	if (lsmc->sk.sk_state == SMC_LISTEN) {
 		lock_sock_nested(&lsmc->sk, SINGLE_DEPTH_NESTING);
 		smc_accept_enqueue(&lsmc->sk, newsmcsk);
@@ -2390,6 +2392,7 @@ static void smc_listen_work(struct work_struct *work)
 	u8 accept_version;
 	int rc = 0;
 
+	lock_sock(&new_smc->sk); /* release in smc_listen_out() */
 	if (new_smc->listen_smc->sk.sk_state != SMC_LISTEN)
 		return smc_listen_out_err(new_smc);
 
@@ -3274,7 +3277,6 @@ static int __smc_create(struct net *net, struct socket *sock, int protocol,
 	smc = smc_sk(sk);
 	smc->use_fallback = false; /* assume rdma capability first */
 	smc->fallback_rsn = 0;
-	smc_close_init(smc);
 
 	/* default behavior from limit_smc_hs in every net namespace */
 	smc->limit_smc_hs = net->smc.limit_smc_hs;
@@ -3294,10 +3296,7 @@ static int __smc_create(struct net *net, struct socket *sock, int protocol,
 		 * which need net ref.
 		 */
 		sk = smc->clcsock->sk;
-		__netns_tracker_free(net, &sk->ns_tracker, false);
-		sk->sk_net_refcnt = 1;
-		get_net_track(net, &sk->ns_tracker, GFP_KERNEL);
-		sock_inuse_add(net, 1);
+		sk_net_refcnt_upgrade(sk);
 	} else {
 		smc->clcsock = clcsock;
 	}

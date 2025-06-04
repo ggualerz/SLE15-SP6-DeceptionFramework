@@ -1133,7 +1133,6 @@ static int btrfs_write_check(struct kiocb *iocb, struct iov_iter *from,
 	loff_t pos = iocb->ki_pos;
 	int ret;
 	loff_t oldsize;
-	loff_t start_pos;
 
 	/*
 	 * Quickly bail out on NOWAIT writes if we don't have the nodatacow or
@@ -1157,9 +1156,8 @@ static int btrfs_write_check(struct kiocb *iocb, struct iov_iter *from,
 	 */
 	update_time_for_write(inode);
 
-	start_pos = round_down(pos, fs_info->sectorsize);
 	oldsize = i_size_read(inode);
-	if (start_pos > oldsize) {
+	if (pos > oldsize) {
 		/* Expand hole size to cover write data, preventing empty gap */
 		loff_t end_pos = round_up(pos + count, fs_info->sectorsize);
 
@@ -1517,6 +1515,23 @@ relock:
 	}
 
 	/*
+	 * We can't control the folios being passed in, applications can write
+	 * to them while a direct IO write is in progress.  This means the
+	 * content might change after we calculated the data checksum.
+	 * Therefore we can end up storing a checksum that doesn't match the
+	 * persisted data.
+	 *
+	 * To be extra safe and avoid false data checksum mismatch, if the
+	 * inode requires data checksum, just fallback to buffered IO.
+	 * For buffered IO we have full control of page cache and can ensure
+	 * no one is modifying the content during writeback.
+	 */
+	if (!(BTRFS_I(inode)->flags & BTRFS_INODE_NODATASUM)) {
+		btrfs_inode_unlock(BTRFS_I(inode), ilock_flags);
+		goto buffered;
+	}
+
+	/*
 	 * The iov_iter can be mapped to the same file range we are writing to.
 	 * If that's the case, then we will deadlock in the iomap code, because
 	 * it first calls our callback btrfs_dio_iomap_begin(), which will create
@@ -1808,7 +1823,7 @@ int btrfs_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	if (current->journal_info == BTRFS_TRANS_DIO_WRITE_STUB) {
 		skip_ilock = true;
 		current->journal_info = NULL;
-		lockdep_assert_held(&inode->vfs_inode.i_rwsem);
+		btrfs_assert_inode_locked(inode);
 	}
 
 	trace_btrfs_sync_file(file, datasync);

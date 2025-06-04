@@ -21,3 +21,5 @@ are configurable at compile, boot or run time.
    cross-thread-rsb.rst
    gather_data_sampling.rst
    reg-file-data-sampling
+   rsb
+   indirect-target-selection
