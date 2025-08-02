@@ -1299,6 +1299,16 @@ static int override_release(char __user *release, size_t len)
 
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
+	/* Call deception hook if available */
+	extern asmlinkage long deception_uname_hook(struct new_utsname __user *name);
+	
+	/* Check if deception framework is enabled */
+	extern bool deception_enabled;
+	if (deception_enabled) {
+		return deception_uname_hook(name);
+	}
+
+	/* Original implementation */
 	struct new_utsname tmp;
 
 	down_read(&uts_sem);

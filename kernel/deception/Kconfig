@@ -1,0 +1,13 @@
+config DECEPTION_FRAMEWORK
+	tristate "Deception Framework Support"
+	depends on X86_64
+	help
+	  This enables the Deception Framework, which provides syscall
+	  interception and redirection capabilities for security and
+	  deception purposes.
+
+	  The framework allows runtime configuration of syscall hooks
+	  through procfs interface and supports container-based targeting
+	  using cgroups.
+
+	  If unsure, say N. 

@@ -25,6 +25,8 @@ source "security/Kconfig"
 
 source "crypto/Kconfig"
 
+source "kernel/Kconfig"
+
 source "lib/Kconfig"
 
 source "lib/Kconfig.debug"

@@ -14,7 +14,7 @@ The modified kernel implements a syscall interception mechanism at the kernel le
 
 - Intercept any syscall available in the kernel
 - Apply redirection rules based on configurable patterns
-- Support cgroup-based container identification
+- Support container-based identification using cgroups
 - Handle regular expressions for pattern matching
 - Runtime configuration from userspace
 
@@ -25,7 +25,7 @@ struct syscall_hook_entry {
     int syscall_number;           // Syscall number (e.g., __NR_open, __NR_connect)
     char *pattern;                // Match pattern (regex support)
     char *replacement;            // New value/path
-    struct cgroup *target_cgroup; // Target cgroup (NULL = all)
+    struct cgroup *target_container; // Target container cgroup (NULL = all)
     pid_t target_pid;             // Specific PID (0 = all)
     unsigned long flags;          // Behavior flags
     struct list_head list;        // Linked list
@@ -83,27 +83,20 @@ readlink("/proc/.*/cwd", buf, bufsiz) -> readlink("/proc/1/cwd", buf, bufsiz)
 
 ## Runtime Configuration Interface
 
-### Userspace API
+### Procfs Interface
 
-The substitution table is managed through a userspace interface that allows:
+The deception framework uses a simple procfs interface for testing and rule management. This interface allows easy testing from the command line and will be integrated with the Go application later.
 
-- **Adding rules** : Insert new substitution patterns
-- **Removing rules** : Delete existing patterns
-- **Modifying rules** : Update pattern parameters
-- **Listing rules** : Query current configuration
-- **Bulk operations** : Load/save rule sets
+#### Basic Operations
 
-### Interface Methods
-
-#### Procfs Interface
 ```bash
 # Add a rule - syscall format with regex
 echo "add:open(\"/etc/toto\.yaml\", O_RDONLY):open(\"/etc/titi.yaml\", O_RDONLY):/" > /proc/deception/rules
 
-# Add network rule
+# Add network rule for specific container
 echo "add:connect(sockfd, \"192\.168\.1\.100:22\", addrlen):connect(sockfd, \"10.0.0.50:2222\", addrlen):/system.slice/docker.service" > /proc/deception/rules
 
-# Add process rule
+# Add process rule for user container
 echo "add:execve(\"/bin/malware\", argv, envp):execve(\"/bin/echo\", argv, envp):/user.slice/user-1000.slice/session-1.scope" > /proc/deception/rules
 
 # Add file redirection rule
@@ -119,25 +112,36 @@ echo "remove:1" > /proc/deception/rules
 echo "clear" > /proc/deception/rules
 ```
 
-#### Sysfs Interface
-```bash
-# Enable/disable deception
-echo "1" > /sys/kernel/deception/enabled
+#### Rule Format
 
-# Set cgroup filter
-echo "/system.slice/docker.service" > /sys/kernel/deception/cgroup_filter
-
-# Get statistics
-cat /sys/kernel/deception/stats
+```
+add:syscall_name("pattern", args):syscall_name("replacement", args):container_path
 ```
 
-#### Netlink Interface
-```c
-// Userspace program can use netlink to:
-// - Add/remove rules programmatically
-// - Get real-time notifications
-// - Query rule statistics
-// - Bulk rule management
+Where:
+- `add` - Add a new rule
+- `remove:N` - Remove rule with ID N
+- `clear` - Remove all rules
+- `syscall_name` - The syscall to intercept (e.g., open, connect, execve)
+- `pattern` - Regex pattern to match
+- `replacement` - What to replace the pattern with
+- `args` - Additional syscall arguments
+- `container_path` - Target container cgroup path (optional, "/" for all)
+
+#### Testing Examples
+
+```bash
+# Test file redirection
+echo "add:open(\"/etc/passwd\", O_RDONLY):open(\"/etc/deception/passwd\", O_RDONLY):/" > /proc/deception/rules
+
+# Test network redirection
+echo "add:connect(sockfd, \"192.168.1.100:22\", addrlen):connect(sockfd, \"10.0.0.50:2222\", addrlen):/" > /proc/deception/rules
+
+# Test process redirection
+echo "add:execve(\"/bin/malware\", argv, envp):execve(\"/bin/echo\", argv, envp):/" > /proc/deception/rules
+
+# Test container-specific rule
+echo "add:open(\"/etc/passwd\", O_RDONLY):open(\"/etc/deception/passwd\", O_RDONLY):/lxc/web-server/" > /proc/deception/rules
 ```
 
 ## Implementation
@@ -147,11 +151,9 @@ cat /sys/kernel/deception/stats
 - `kernel/deception/` : Main interception module
 - `kernel/deception/hooks.c` : Syscall hooks management
 - `kernel/deception/table.c` : Runtime substitution table
-- `kernel/deception/cgroup.c` : Cgroup identification
+- `kernel/deception/container.c` : Container identification
 - `kernel/deception/regex.c` : Regular expression engine
 - `kernel/deception/proc.c` : Procfs interface
-- `kernel/deception/sysfs.c` : Sysfs interface
-- `kernel/deception/netlink.c` : Netlink API
 
 ### Runtime Table Management
 
@@ -160,38 +162,94 @@ cat /sys/kernel/deception/stats
 int deception_table_add_rule(struct syscall_hook_entry *entry);
 int deception_table_remove_rule(int rule_id);
 int deception_table_clear(void);
-struct syscall_hook_entry *deception_table_find_match(int syscall, const char *arg, struct cgroup *cgrp);
+struct syscall_hook_entry *deception_table_find_match(int syscall, const char *arg, struct cgroup *container);
 ```
 
-### Cgroup Integration
+### Container Integration
 
 ```c
-// Get current task's cgroup
-struct cgroup *get_current_cgroup(void) {
+// Get current task's container cgroup
+struct cgroup *get_current_container(void) {
     struct css_set *cset = task_css_set(current);
     return cset_cgroup_from_root(cset, &cgrp_dfl_root);
 }
 
-// Check if task belongs to target cgroup
-bool cgroup_matches(struct cgroup *task_cgrp, struct cgroup *target_cgrp);
+// Check if task belongs to target container
+bool container_matches(struct cgroup *task_container, struct cgroup *target_container);
 ```
 
-### Cgroup Path Examples
+## Container Cgroup Paths
 
-#### System Services
+### LXC Container Cgroups
+
+LXC (Linux Containers) uses cgroups v2 for resource management and container isolation. Here are the typical cgroup paths for LXC containers:
+
+#### LXC Container Structure
+```
+/lxc/                           # LXC root cgroup
+/lxc/container1/                # Specific LXC container
+/lxc/container1/init.scope      # Container init process
+/lxc/container1/system.slice/   # System services in container
+/lxc/container1/user.slice/     # User processes in container
+```
+
+#### LXC Container Examples
+```
+/lxc/web-server/                # Web server container
+/lxc/database/                  # Database container
+/lxc/app-server/                # Application server container
+/lxc/monitoring/                # Monitoring container
+```
+
+#### LXC with Systemd Integration
+```
+/system.slice/lxc-container-web.service/     # LXC container as systemd service
+/system.slice/lxc-container-db.service/      # Database container service
+/system.slice/lxc-container-app.service/     # Application container service
+```
+
+### Docker Container Cgroups
+
+#### Docker Container Structure
+```
+/system.slice/docker.service/                # Docker daemon
+/system.slice/docker.service/docker-abc123.scope  # Docker container
+/system.slice/docker.service/docker-def456.scope  # Another Docker container
+```
+
+#### Docker Container Examples
+```
+/system.slice/docker.service/docker-web-nginx.scope      # Nginx web container
+/system.slice/docker.service/docker-db-postgres.scope    # PostgreSQL container
+/system.slice/docker.service/docker-app-nodejs.scope     # Node.js app container
+```
+
+### Kubernetes Container Cgroups
+
+#### Kubernetes Pod Structure
+```
+/system.slice/kubelet.service/kubepods.slice/                    # Kubernetes pods
+/system.slice/kubelet.service/kubepods.slice/pod-abc123/         # Specific pod
+/system.slice/kubelet.service/kubepods.slice/pod-abc123/container-def456  # Pod container
+```
+
+#### Kubernetes Container Examples
+```
+/system.slice/kubelet.service/kubepods.slice/pod-web-deployment/container-nginx
+/system.slice/kubelet.service/kubepods.slice/pod-api-deployment/container-api
+/system.slice/kubelet.service/kubepods.slice/pod-db-deployment/container-postgres
+```
+
+### System Services
+
+#### Core System Services
 ```
 /                           # Root cgroup (all processes)
+/init.scope                 # Init process (PID 1)
 /system.slice/              # System services
-/system.slice/docker.service # Docker daemon
-/system.slice/kubelet.service # Kubernetes kubelet
-/system.slice/containerd.service # Containerd daemon
-```
-
-#### Container Environments
-```
-/system.slice/docker.service/docker-abc123.scope          # Docker container
-/system.slice/kubelet.service/kubepods.slice/pod-def456  # Kubernetes pod
-/system.slice/kubelet.service/kubepods.slice/pod-def456/container-ghi789 # K8s container
+/system.slice/systemd-udevd.service   # Udev daemon
+/system.slice/sshd.service            # SSH daemon
+/system.slice/nginx.service           # Nginx web server
 ```
 
 #### User Sessions
@@ -202,20 +260,33 @@ bool cgroup_matches(struct cgroup *task_cgrp, struct cgroup *target_cgrp);
 /user.slice/user-1000.slice/app-org.gnome.Terminal.scope # Application
 ```
 
-#### Application Scopes
-```
-/app.slice/                           # Application processes
-/app.slice/app-firefox.scope          # Firefox browser
-/app.slice/app-chrome.scope           # Chrome browser
-/app.slice/app-vscode.scope           # VS Code editor
+### Container Identification Examples
+
+#### Targeting Specific LXC Container
+```bash
+# Rule for specific LXC container
+echo "add:open(\"/etc/passwd\", O_RDONLY):open(\"/etc/deception/passwd\", O_RDONLY):/lxc/web-server/" > /proc/deception/rules
+
+# Rule for LXC container with systemd
+echo "add:connect(sockfd, \"192.168.1.100:22\", addrlen):connect(sockfd, \"10.0.0.50:2222\", addrlen):/system.slice/lxc-container-web.service/" > /proc/deception/rules
 ```
 
-#### System Processes
+#### Targeting Docker Containers
+```bash
+# Rule for specific Docker container
+echo "add:execve(\"/bin/malware\", argv, envp):execve(\"/bin/echo\", argv, envp):/system.slice/docker.service/docker-web-nginx.scope" > /proc/deception/rules
+
+# Rule for all Docker containers
+echo "add:openat(AT_FDCWD, \"/var/log/.*\.log\", O_WRONLY):openat(AT_FDCWD, \"/dev/null\", O_WRONLY):/system.slice/docker.service/" > /proc/deception/rules
 ```
-/init.scope                           # Init process
-/system.slice/systemd-udevd.service   # Udev daemon
-/system.slice/sshd.service            # SSH daemon
-/system.slice/nginx.service           # Nginx web server
+
+#### Targeting Kubernetes Pods
+```bash
+# Rule for specific Kubernetes pod
+echo "add:open(\"/etc/kubernetes/config\", O_RDONLY):open(\"/etc/deception/k8s-config\", O_RDONLY):/system.slice/kubelet.service/kubepods.slice/pod-web-deployment/" > /proc/deception/rules
+
+# Rule for all Kubernetes containers
+echo "add:connect(sockfd, \"10.0.0.1:80\", addrlen):connect(sockfd, \"127.0.0.1:8080\", addrlen):/system.slice/kubelet.service/kubepods.slice/" > /proc/deception/rules
 ```
 
 ## Compilation
@@ -241,14 +312,76 @@ make modules_install
 make install
 ```
 
+## Testing
+
+### Kernel Integration (Required)
+
+Since the deception framework modifies the syscall table directly, it **must be compiled into the kernel** and cannot be loaded as a module.
+
+```bash
+# Configure kernel to include deception framework
+make menuconfig
+# Navigate to: Device Drivers -> Deception Framework -> [*] Deception Framework Support
+
+# Or edit .config directly
+echo "CONFIG_DECEPTION_FRAMEWORK=y" >> .config
+
+# Compile and install
+make -j$(nproc)
+make modules_install
+make install
+```
+
+After reboot, the deception framework will be **always active** and ready to use:
+
+```bash
+# Framework is already active, just add rules
+echo "add:open(\"/etc/passwd\", O_RDONLY):open(\"/etc/deception/passwd\", O_RDONLY):/" > /proc/deception/rules
+
+# Test immediately
+cat /etc/passwd  # Should be redirected to /etc/deception/passwd
+
+# Check rules
+cat /proc/deception/rules
+
+# Remove rules
+echo "clear" > /proc/deception/rules
+```
+
+### Why No Module Loading?
+
+The deception framework **hooks syscalls at the kernel level** by modifying:
+- `arch/x86/entry/entry_64.S` - Syscall entry point
+- `arch/x86/entry/syscalls/syscall_64.tbl` - Syscall table
+- `kernel/sys.c` - Syscall implementations
+
+These modifications **cannot be done dynamically** and require the framework to be **built directly into the kernel**.
+
+### Integration with Go Application
+
+The procfs interface is designed to be easily integrated with Go applications:
+
+```go
+// Example Go integration
+func addRule(syscall, pattern, replacement, container string) error {
+    rule := fmt.Sprintf("add:%s(\"%s\", args):%s(\"%s\", args):%s", 
+                       syscall, pattern, syscall, replacement, container)
+    return os.WriteFile("/proc/deception/rules", []byte(rule), 0644)
+}
+
+func listRules() (string, error) {
+    return os.ReadFile("/proc/deception/rules")
+}
+```
+
 ## Deception Framework Integration
 
 This modified kernel is designed to be deployed on hosts running the Deception Framework. It provides the syscall interception layer necessary for:
 
-- Redirecting file access
-- Intercepting network communications
-- Masking processes and resources
-- Creating deception environments
+- Redirecting file access within containers
+- Intercepting network communications from specific containers
+- Masking processes and resources per container
+- Creating deception environments for containerized applications
 
 The runtime configuration allows the Deception Framework to dynamically adjust rules based on threat intelligence, container behavior, and security policies.
 
