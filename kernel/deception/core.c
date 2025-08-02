@@ -12,11 +12,11 @@
 /* Global deception table */
 static struct deception_table *deception_table = NULL;
 
-/* Original syscall functions */
-static void *__maybe_unused original_syscalls[__NR_syscalls] = {NULL};
+/* Original syscall functions - will be used in future hooking */
+static void *original_syscalls[__NR_syscalls] __attribute__((unused)) = {NULL};
 
-/* Hooked syscall functions */
-static void *__maybe_unused hooked_syscalls[__NR_syscalls] = {NULL};
+/* Hooked syscall functions - will be used in future hooking */
+static void *hooked_syscalls[__NR_syscalls] __attribute__((unused)) = {NULL};
 
 /* Module parameters */
 static bool deception_enabled = true;
@@ -71,21 +71,9 @@ void deception_exit(void)
  */
 struct cgroup *get_current_container(void)
 {
-	struct css_set *cset = task_css_set(current);
-	struct cgroup *cgrp = NULL;
-	
-	/* Get the default cgroup for the current task */
-	if (cset && cset->cgrp_links.next != &cset->cgrp_links) {
-		struct cgrp_cset_link *link;
-		list_for_each_entry(link, &cset->cgrp_links, cset_link) {
-			if (link->cgrp) {
-				cgrp = link->cgrp;
-				break;
-			}
-		}
-	}
-	
-	return cgrp;
+	/* For now, return NULL to indicate no container filtering */
+	/* TODO: Implement proper container detection when needed */
+	return NULL;
 }
 
 /**
