@@ -55,7 +55,7 @@ check_dependencies() {
     local missing_deps=()
     
     # Check for required packages (openSUSE Leap with zypper)
-    for dep in gcc make bison flex libopenssl-devel libelf-devel ncurses-devel; do
+    for dep in gcc make bison flex bc libopenssl-devel libelf-devel ncurses-devel; do
         if ! rpm -q "$dep" &>/dev/null; then
             missing_deps+=("$dep")
         fi
