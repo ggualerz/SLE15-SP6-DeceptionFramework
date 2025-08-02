@@ -8,6 +8,12 @@
 #include <linux/string.h>
 #include "core.h"
 
+/* External function declarations */
+extern struct syscall_hook_entry *deception_create_rule(int syscall_number, const char *pattern, 
+                                                       const char *replacement, struct cgroup *container, 
+                                                       pid_t target_pid, unsigned long flags);
+extern void deception_destroy_rule(struct syscall_hook_entry *entry);
+
 static struct proc_dir_entry *deception_proc_dir = NULL;
 static struct proc_dir_entry *deception_rules_file = NULL;
 
@@ -16,9 +22,6 @@ static struct proc_dir_entry *deception_rules_file = NULL;
  */
 static int deception_proc_show(struct seq_file *m, void *v)
 {
-	struct syscall_hook_entry *entry;
-	int count = 0;
-
 	seq_printf(m, "Deception Framework Rules:\n");
 	seq_printf(m, "========================\n");
 
