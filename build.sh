@@ -88,6 +88,15 @@ configure_kernel() {
         make defconfig
     fi
     
+    # Configure SUSE version for SLE15-SP6
+    print_status "Configuring SUSE version for SLE15-SP6..."
+    echo "CONFIG_SUSE_KERNEL=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SUSE_PRODUCT_SLE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SUSE_PRODUCT_CODE=1" >> "$CONFIG_FILE"
+    echo "CONFIG_SUSE_VERSION=15" >> "$CONFIG_FILE"
+    echo "CONFIG_SUSE_PATCHLEVEL=6" >> "$CONFIG_FILE"
+    echo "CONFIG_SUSE_AUXRELEASE=0" >> "$CONFIG_FILE"
+    
     # Enable deception framework
     print_status "Enabling Deception Framework..."
     echo "CONFIG_DECEPTION_FRAMEWORK=y" >> "$CONFIG_FILE"
