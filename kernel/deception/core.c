@@ -19,7 +19,8 @@ static void *original_syscalls[__NR_syscalls] __attribute__((unused)) = {NULL};
 static void *hooked_syscalls[__NR_syscalls] __attribute__((unused)) = {NULL};
 
 /* Module parameters */
-static bool deception_enabled = true;
+bool deception_enabled = true;
+EXPORT_SYMBOL_GPL(deception_enabled);
 module_param(deception_enabled, bool, 0644);
 MODULE_PARM_DESC(deception_enabled, "Enable/disable deception framework");
 
