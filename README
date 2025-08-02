@@ -1,18 +1,257 @@
-Linux kernel
-============
+# Modified Linux Kernel SLE15-SP6 - Deception Framework
 
-There are several guides for kernel developers and users. These guides can
-be rendered in a number of formats, like HTML and PDF. Please read
-Documentation/admin-guide/README.rst first.
+## Overview
 
-In order to build the documentation, use ``make htmldocs`` or
-``make pdfdocs``.  The formatted documentation can also be read online at:
+This repository contains the modified Linux kernel SLE15-SP6 to support the Deception Framework. This kernel serves as the foundation for hosts running the Deception Framework project, enabling syscall interception and redirection based on configurable rules.
 
-    https://www.kernel.org/doc/html/latest/
+**Target Platform**: x86_64 architecture for virtual machine deployment
 
-There are various text files in the Documentation/ subdirectory,
-several of them using the Restructured Text markup notation.
+## Technical Architecture
 
-Please read the Documentation/process/changes.rst file, as it contains the
-requirements for building and running the kernel, and information about
-the problems which may result by upgrading your kernel.
+### Interception Principle
+
+The modified kernel implements a syscall interception mechanism at the kernel level, allowing to:
+
+- Intercept any syscall available in the kernel
+- Apply redirection rules based on configurable patterns
+- Support cgroup-based container identification
+- Handle regular expressions for pattern matching
+- Runtime configuration from userspace
+
+### Runtime Substitution Table Structure
+
+```c
+struct syscall_hook_entry {
+    int syscall_number;           // Syscall number (e.g., __NR_open, __NR_connect)
+    char *pattern;                // Match pattern (regex support)
+    char *replacement;            // New value/path
+    struct cgroup *target_cgroup; // Target cgroup (NULL = all)
+    pid_t target_pid;             // Specific PID (0 = all)
+    unsigned long flags;          // Behavior flags
+    struct list_head list;        // Linked list
+};
+
+struct deception_table {
+    struct list_head entries;     // List of substitution rules
+    spinlock_t lock;              // Protects the table
+    atomic_t refcount;            // Reference counting
+};
+```
+
+### Injection Points
+
+1. **Entry point** : `arch/x86/entry/entry_64.S`
+2. **Syscall table** : `arch/x86/entry/syscalls/syscall_64.tbl`
+3. **Kernel syscalls** : `kernel/sys.c`
+
+## Interception Features
+
+### Supported Syscalls
+
+- **Files** : `open`, `openat`, `creat`, `unlink`, `rename`, `link`, `symlink`
+- **Network** : `connect`, `bind`, `accept`, `socket`
+- **Processes** : `execve`, `clone`, `fork`, `vfork`
+- **System** : `getdents64`, `readlink`, `stat`, `access`
+- **And all other available syscalls**
+
+### Rule Examples
+
+#### File Operations
+```
+open("/etc/toto\.yaml", O_RDONLY) -> open("/etc/titi.yaml", O_RDONLY)
+openat(AT_FDCWD, "/var/log/.*\.log", O_WRONLY) -> openat(AT_FDCWD, "/dev/null", O_WRONLY)
+creat("/tmp/.*\.tmp", 0644) -> creat("/tmp/deception.tmp", 0644)
+```
+
+#### Network Operations
+```
+connect(sockfd, "192\.168\.1\.100:22", addrlen) -> connect(sockfd, "10.0.0.50:2222", addrlen)
+bind(sockfd, "0\.0\.0\.0:8080", addrlen) -> bind(sockfd, "127.0.0.1:8080", addrlen)
+```
+
+#### Process Operations
+```
+execve("/bin/.*", argv, envp) -> execve("/bin/echo", argv, envp)
+getdents64(fd, dirp, count) -> getdents64(fd, filtered_dirp, count)
+```
+
+#### System Operations
+```
+stat("/proc/.*/exe", statbuf) -> stat("/proc/1/exe", statbuf)
+readlink("/proc/.*/cwd", buf, bufsiz) -> readlink("/proc/1/cwd", buf, bufsiz)
+```
+
+## Runtime Configuration Interface
+
+### Userspace API
+
+The substitution table is managed through a userspace interface that allows:
+
+- **Adding rules** : Insert new substitution patterns
+- **Removing rules** : Delete existing patterns
+- **Modifying rules** : Update pattern parameters
+- **Listing rules** : Query current configuration
+- **Bulk operations** : Load/save rule sets
+
+### Interface Methods
+
+#### Procfs Interface
+```bash
+# Add a rule - syscall format with regex
+echo "add:open(\"/etc/toto\.yaml\", O_RDONLY):open(\"/etc/titi.yaml\", O_RDONLY):/" > /proc/deception/rules
+
+# Add network rule
+echo "add:connect(sockfd, \"192\.168\.1\.100:22\", addrlen):connect(sockfd, \"10.0.0.50:2222\", addrlen):/system.slice/docker.service" > /proc/deception/rules
+
+# Add process rule
+echo "add:execve(\"/bin/malware\", argv, envp):execve(\"/bin/echo\", argv, envp):/user.slice/user-1000.slice/session-1.scope" > /proc/deception/rules
+
+# Add file redirection rule
+echo "add:openat(AT_FDCWD, \"/var/log/.*\.log\", O_WRONLY):openat(AT_FDCWD, \"/dev/null\", O_WRONLY):/" > /proc/deception/rules
+
+# List all rules
+cat /proc/deception/rules
+
+# Remove rule by ID
+echo "remove:1" > /proc/deception/rules
+
+# Clear all rules
+echo "clear" > /proc/deception/rules
+```
+
+#### Sysfs Interface
+```bash
+# Enable/disable deception
+echo "1" > /sys/kernel/deception/enabled
+
+# Set cgroup filter
+echo "/system.slice/docker.service" > /sys/kernel/deception/cgroup_filter
+
+# Get statistics
+cat /sys/kernel/deception/stats
+```
+
+#### Netlink Interface
+```c
+// Userspace program can use netlink to:
+// - Add/remove rules programmatically
+// - Get real-time notifications
+// - Query rule statistics
+// - Bulk rule management
+```
+
+## Implementation
+
+### Kernel Modules
+
+- `kernel/deception/` : Main interception module
+- `kernel/deception/hooks.c` : Syscall hooks management
+- `kernel/deception/table.c` : Runtime substitution table
+- `kernel/deception/cgroup.c` : Cgroup identification
+- `kernel/deception/regex.c` : Regular expression engine
+- `kernel/deception/proc.c` : Procfs interface
+- `kernel/deception/sysfs.c` : Sysfs interface
+- `kernel/deception/netlink.c` : Netlink API
+
+### Runtime Table Management
+
+```c
+// Table operations
+int deception_table_add_rule(struct syscall_hook_entry *entry);
+int deception_table_remove_rule(int rule_id);
+int deception_table_clear(void);
+struct syscall_hook_entry *deception_table_find_match(int syscall, const char *arg, struct cgroup *cgrp);
+```
+
+### Cgroup Integration
+
+```c
+// Get current task's cgroup
+struct cgroup *get_current_cgroup(void) {
+    struct css_set *cset = task_css_set(current);
+    return cset_cgroup_from_root(cset, &cgrp_dfl_root);
+}
+
+// Check if task belongs to target cgroup
+bool cgroup_matches(struct cgroup *task_cgrp, struct cgroup *target_cgrp);
+```
+
+### Cgroup Path Examples
+
+#### System Services
+```
+/                           # Root cgroup (all processes)
+/system.slice/              # System services
+/system.slice/docker.service # Docker daemon
+/system.slice/kubelet.service # Kubernetes kubelet
+/system.slice/containerd.service # Containerd daemon
+```
+
+#### Container Environments
+```
+/system.slice/docker.service/docker-abc123.scope          # Docker container
+/system.slice/kubelet.service/kubepods.slice/pod-def456  # Kubernetes pod
+/system.slice/kubelet.service/kubepods.slice/pod-def456/container-ghi789 # K8s container
+```
+
+#### User Sessions
+```
+/user.slice/                           # User processes
+/user.slice/user-1000.slice/          # Specific user
+/user.slice/user-1000.slice/session-1.scope # User session
+/user.slice/user-1000.slice/app-org.gnome.Terminal.scope # Application
+```
+
+#### Application Scopes
+```
+/app.slice/                           # Application processes
+/app.slice/app-firefox.scope          # Firefox browser
+/app.slice/app-chrome.scope           # Chrome browser
+/app.slice/app-vscode.scope           # VS Code editor
+```
+
+#### System Processes
+```
+/init.scope                           # Init process
+/system.slice/systemd-udevd.service   # Udev daemon
+/system.slice/sshd.service            # SSH daemon
+/system.slice/nginx.service           # Nginx web server
+```
+
+## Compilation
+
+### Prerequisites
+- x86_64 architecture
+- Virtual machine environment
+- Standard Linux build tools
+
+### Build Configuration
+```bash
+# Configure for x86_64 VM deployment
+make defconfig
+make menuconfig  # Enable CONFIG_DECEPTION_FRAMEWORK
+
+# Optimize for VM
+# Enable: CONFIG_KVM_GUEST, CONFIG_HYPERVISOR_GUEST
+# Disable: CONFIG_DEBUG_KERNEL (unless debugging)
+
+# Compilation
+make -j$(nproc)
+make modules_install
+make install
+```
+
+## Deception Framework Integration
+
+This modified kernel is designed to be deployed on hosts running the Deception Framework. It provides the syscall interception layer necessary for:
+
+- Redirecting file access
+- Intercepting network communications
+- Masking processes and resources
+- Creating deception environments
+
+The runtime configuration allows the Deception Framework to dynamically adjust rules based on threat intelligence, container behavior, and security policies.
+
+## License
+
+This project is based on the Linux kernel SLE15-SP6 and follows the same license terms (GPL v2).
