@@ -44,8 +44,18 @@ asmlinkage long deception_uname_hook(struct new_utsname __user *name)
 		return 0;
 	}
 
-	/* No rule matched, call original syscall */
-	return sys_newuname(name);
+	/* No rule matched, implement original behavior directly */
+	down_read(&uts_sem);
+	memcpy(&tmp, utsname(), sizeof(tmp));
+	up_read(&uts_sem);
+	if (copy_to_user(name, &tmp, sizeof(tmp)))
+		return -EFAULT;
+
+	if (override_release(name->release, sizeof(name->release)))
+		return -EFAULT;
+	if (override_architecture(name))
+		return -EFAULT;
+	return 0;
 }
 
 /**
