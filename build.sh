@@ -54,16 +54,16 @@ check_dependencies() {
     
     local missing_deps=()
     
-    # Check for required packages
-    for dep in gcc make bison flex libssl-dev libelf-dev libncurses-dev; do
-        if ! dpkg -l | grep -q "^ii  $dep"; then
+    # Check for required packages (openSUSE Leap with zypper)
+    for dep in gcc make bison flex libopenssl-devel libelf-devel ncurses-devel; do
+        if ! rpm -q "$dep" &>/dev/null; then
             missing_deps+=("$dep")
         fi
     done
     
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         print_error "Missing dependencies: ${missing_deps[*]}"
-        print_status "Install with: sudo apt-get install ${missing_deps[*]}"
+        print_status "Install with: sudo zypper install ${missing_deps[*]}"
         exit 1
     fi
     
@@ -137,16 +137,16 @@ install_kernel() {
 update_bootloader() {
     print_status "Updating bootloader..."
     
-    # Update grub (for most systems)
-    if command -v update-grub &> /dev/null; then
+    # Update grub for openSUSE
+    if command -v grub2-mkconfig &> /dev/null; then
+        grub2-mkconfig -o /boot/grub2/grub.cfg
+        print_status "GRUB2 updated for openSUSE"
+    elif command -v update-grub &> /dev/null; then
         update-grub
         print_status "GRUB updated"
-    elif command -v grub2-mkconfig &> /dev/null; then
-        grub2-mkconfig -o /boot/grub2/grub.cfg
-        print_status "GRUB2 updated"
     else
         print_warning "Could not update bootloader automatically"
-        print_warning "Please update your bootloader manually"
+        print_warning "Please update your bootloader manually with: grub2-mkconfig -o /boot/grub2/grub.cfg"
     fi
 }
 
