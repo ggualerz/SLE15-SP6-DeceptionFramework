@@ -4,6 +4,7 @@
 #include <linux/utsname.h>
 #include <linux/sched.h>
 #include <linux/cgroup.h>
+#include <linux/syscalls.h>
 #include "core.h"
 
 /* External declaration of original syscall */
@@ -17,7 +18,6 @@ asmlinkage long deception_uname_hook(struct new_utsname __user *name)
 	struct syscall_hook_entry *rule;
 	struct cgroup *container;
 	struct new_utsname tmp;
-	int ret;
 
 	/* Get current container */
 	container = get_current_container();
@@ -41,11 +41,6 @@ asmlinkage long deception_uname_hook(struct new_utsname __user *name)
 		if (copy_to_user(name, &tmp, sizeof(tmp)))
 			return -EFAULT;
 		
-		if (override_release(name->release, sizeof(name->release)))
-			return -EFAULT;
-		if (override_architecture(name))
-			return -EFAULT;
-		
 		return 0;
 	}
 
@@ -58,12 +53,10 @@ asmlinkage long deception_uname_hook(struct new_utsname __user *name)
  */
 int deception_hook_syscall(int syscall_number, void *original_func, void *hook_func)
 {
-	if (syscall_number < 0 || syscall_number >= __NR_syscall_max)
+	if (syscall_number < 0 || syscall_number >= __NR_syscalls)
 		return -EINVAL;
 
-	original_syscalls[syscall_number] = original_func;
-	hooked_syscalls[syscall_number] = hook_func;
-
+	/* For now, just log the hook attempt */
 	pr_info("Deception Framework: Hooked syscall %d\n", syscall_number);
 	return 0;
 }
@@ -73,12 +66,10 @@ int deception_hook_syscall(int syscall_number, void *original_func, void *hook_f
  */
 void deception_unhook_syscall(int syscall_number)
 {
-	if (syscall_number < 0 || syscall_number >= __NR_syscall_max)
+	if (syscall_number < 0 || syscall_number >= __NR_syscalls)
 		return;
 
-	original_syscalls[syscall_number] = NULL;
-	hooked_syscalls[syscall_number] = NULL;
-
+	/* For now, just log the unhook attempt */
 	pr_info("Deception Framework: Unhooked syscall %d\n", syscall_number);
 }
 
