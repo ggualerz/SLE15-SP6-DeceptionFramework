@@ -94,6 +94,59 @@ configure_kernel() {
     echo "CONFIG_SUSE_PATCHLEVEL=6" >> "$CONFIG_FILE"
     echo "CONFIG_SUSE_AUXRELEASE=0" >> "$CONFIG_FILE"
     
+    # Enable comprehensive drivers for QEMU + BTRFS
+    print_status "Enabling comprehensive drivers for QEMU + BTRFS..."
+    
+    # Essential filesystems
+    echo "CONFIG_BTRFS_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_EXT4_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_XFS_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_OVERLAY_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DEVTMPFS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DEVTMPFS_MOUNT=y" >> "$CONFIG_FILE"
+    
+    # QEMU/Virtualization drivers
+    echo "CONFIG_KVM_GUEST=y" >> "$CONFIG_FILE"
+    echo "CONFIG_HYPERVISOR_GUEST=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_BLK=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_NET=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_CONSOLE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_BALLOON=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_INPUT=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_MMIO=y" >> "$CONFIG_FILE"
+    
+    # Block device drivers
+    echo "CONFIG_BLK_DEV=y" >> "$CONFIG_FILE"
+    echo "CONFIG_BLK_DEV_SD=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SCSI=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SCSI_VIRTIO=y" >> "$CONFIG_FILE"
+    echo "CONFIG_BLK_DEV_BSG=y" >> "$CONFIG_FILE"
+    echo "CONFIG_BLK_DEV_THROTTLING=y" >> "$CONFIG_FILE"
+    
+    # Network drivers
+    echo "CONFIG_NETDEVICES=y" >> "$CONFIG_FILE"
+    echo "CONFIG_NET_CORE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_INET=y" >> "$CONFIG_FILE"
+    echo "CONFIG_NET=y" >> "$CONFIG_FILE"
+    
+    # Input/Display drivers for QEMU
+    echo "CONFIG_INPUT=y" >> "$CONFIG_FILE"
+    echo "CONFIG_INPUT_KEYBOARD=y" >> "$CONFIG_FILE"
+    echo "CONFIG_INPUT_MOUSE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DRM=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DRM_BOCHS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DRM_VIRTIO_GPU=y" >> "$CONFIG_FILE"
+    echo "CONFIG_FB=y" >> "$CONFIG_FILE"
+    echo "CONFIG_FB_SIMPLE=y" >> "$CONFIG_FILE"
+    
+    # Serial/Console drivers
+    echo "CONFIG_SERIAL_8250=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SERIAL_8250_CONSOLE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VT=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VT_CONSOLE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_HW_CONSOLE=y" >> "$CONFIG_FILE"
+    
     # Only enable the deception framework
     print_status "Enabling Deception Framework..."
     echo "CONFIG_DECEPTION_FRAMEWORK=y" >> "$CONFIG_FILE"
