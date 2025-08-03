@@ -7,8 +7,7 @@
 #include <linux/syscalls.h>
 #include "core.h"
 
-/* External declaration of original syscall */
-extern asmlinkage long sys_newuname(struct new_utsname __user *name);
+/* No external declarations needed - we implement everything internally */
 
 /**
  * deception_uname_hook - Hooked uname syscall
@@ -91,7 +90,7 @@ int deception_hooks_init(void)
 	pr_info("Deception Framework: Initializing hooks...\n");
 
 	/* Hook uname syscall */
-	deception_hook_syscall(__NR_uname, (void *)sys_newuname, (void *)deception_uname_hook);
+	deception_hook_syscall(__NR_uname, NULL, (void *)deception_uname_hook);
 
 	pr_info("Deception Framework: Hooks initialized\n");
 	return 0;
