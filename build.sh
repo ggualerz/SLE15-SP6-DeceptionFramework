@@ -84,8 +84,15 @@ configure_kernel() {
     if [[ -f "$CONFIG_FILE" ]]; then
         print_status "Using existing .config file"
     else
-        print_status "Creating default configuration..."
-        make defconfig
+        print_status "Creating configuration from running kernel..."
+        # Copy config from running kernel for better compatibility
+        if [[ -f "/proc/config.gz" ]]; then
+            zcat /proc/config.gz > "$CONFIG_FILE"
+            print_status "Copied config from running kernel"
+        else
+            print_status "Creating default configuration..."
+            make defconfig
+        fi
     fi
     
     # Configure SUSE version for SLE15-SP6
@@ -110,6 +117,30 @@ configure_kernel() {
     print_status "Disabling debug features for production..."
     echo "CONFIG_DEBUG_KERNEL=n" >> "$CONFIG_FILE"
     echo "CONFIG_DEBUG_INFO=n" >> "$CONFIG_FILE"
+    
+    # Essential filesystem and device drivers for VM
+    print_status "Enabling essential filesystem drivers..."
+    echo "CONFIG_EXT4_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_XFS_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_BTRFS_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_OVERLAY_FS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DEVTMPFS=y" >> "$CONFIG_FILE"
+    echo "CONFIG_DEVTMPFS_MOUNT=y" >> "$CONFIG_FILE"
+    
+    # Essential device drivers
+    print_status "Enabling essential device drivers..."
+    echo "CONFIG_BLK_DEV_SD=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SCSI=y" >> "$CONFIG_FILE"
+    echo "CONFIG_SCSI_VIRTIO=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_BLK=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO_NET=y" >> "$CONFIG_FILE"
+    echo "CONFIG_VIRTIO=y" >> "$CONFIG_FILE"
+    
+    # Network drivers
+    print_status "Enabling network drivers..."
+    echo "CONFIG_NETDEVICES=y" >> "$CONFIG_FILE"
+    echo "CONFIG_NET_CORE=y" >> "$CONFIG_FILE"
+    echo "CONFIG_INET=y" >> "$CONFIG_FILE"
     
     print_status "Configuration completed"
 }
