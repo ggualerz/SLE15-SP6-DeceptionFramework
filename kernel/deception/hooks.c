@@ -50,10 +50,6 @@ asmlinkage long deception_uname_hook(struct new_utsname __user *name)
 	if (copy_to_user(name, &tmp, sizeof(tmp)))
 		return -EFAULT;
 
-	if (override_release(name->release, sizeof(name->release)))
-		return -EFAULT;
-	if (override_architecture(name))
-		return -EFAULT;
 	return 0;
 }
 
