@@ -119,6 +119,11 @@ configure_kernel() {
     echo "CONFIG_DEFAULT_SECURITY_SMACK=n" >> "$CONFIG_FILE"
     echo "CONFIG_DEFAULT_SECURITY_DAC=n" >> "$CONFIG_FILE"
     
+    # Disable BTF to avoid pahole dependency
+    print_status "Disabling BTF..."
+    echo "CONFIG_DEBUG_INFO_BTF=n" >> "$CONFIG_FILE"
+    echo "CONFIG_DEBUG_INFO_BTF_MODULES=n" >> "$CONFIG_FILE"
+    
     print_status "Configuration completed"
 }
 
