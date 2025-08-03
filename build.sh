@@ -209,11 +209,18 @@ install_kernel() {
     print_status "Creating initramfs..."
     INITRAMFS="/boot/initrd-${KERNEL_VERSION}"
     if command -v dracut >/dev/null 2>&1; then
-        sudo dracut --force "$INITRAMFS" "$KERNEL_VERSION"
-        if [[ $? -eq 0 ]]; then
-            print_status "Initramfs created with dracut"
+        # Use the full kernel version that was actually installed
+        FULL_KERNEL_VERSION=$(ls /lib/modules/ | grep deceptionframework | head -1)
+        if [[ -n "$FULL_KERNEL_VERSION" ]]; then
+            sudo dracut --force "$INITRAMFS" "$FULL_KERNEL_VERSION"
+            if [[ $? -eq 0 ]]; then
+                print_status "Initramfs created with dracut for $FULL_KERNEL_VERSION"
+            else
+                print_error "Failed to create initramfs with dracut"
+            fi
         else
-            print_error "Failed to create initramfs with dracut"
+            print_warning "Could not find deception framework kernel modules"
+            print_warning "Skipping initramfs creation"
         fi
     elif command -v mkinitrd >/dev/null 2>&1; then
         sudo mkinitrd "$INITRAMFS" "$KERNEL_VERSION"
