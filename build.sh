@@ -134,10 +134,36 @@ install_kernel() {
     print_status "Installing kernel..."
     
     # Install modules
+    print_status "Installing kernel modules..."
     make modules_install
+    if [[ $? -ne 0 ]]; then
+        print_error "Module installation failed"
+        exit 1
+    fi
     
     # Install kernel
+    print_status "Installing kernel image..."
     make install
+    if [[ $? -ne 0 ]]; then
+        print_error "Kernel installation failed"
+        exit 1
+    fi
+    
+    # Verify kernel was installed
+    KERNEL_VERSION=$(make kernelversion)
+    if [[ -f "/boot/vmlinuz-${KERNEL_VERSION}" ]]; then
+        print_status "Kernel verified: /boot/vmlinuz-${KERNEL_VERSION}"
+    else
+        print_error "Kernel not found in /boot/"
+        print_status "Attempting manual installation..."
+        sudo cp arch/x86/boot/bzImage "/boot/vmlinuz-${KERNEL_VERSION}"
+        if [[ $? -eq 0 ]]; then
+            print_status "Manual kernel installation successful"
+        else
+            print_error "Manual kernel installation failed"
+            exit 1
+        fi
+    fi
     
     print_status "Kernel installation completed"
 }
@@ -149,7 +175,21 @@ update_bootloader() {
     # Update grub for openSUSE
     if command -v grub2-mkconfig &> /dev/null; then
         grub2-mkconfig -o /boot/grub2/grub.cfg
-        print_status "GRUB2 updated for openSUSE"
+        if [[ $? -eq 0 ]]; then
+            print_status "GRUB2 updated for openSUSE"
+        else
+            print_error "GRUB2 update failed"
+            exit 1
+        fi
+        
+        # Verify new kernel is in GRUB config
+        KERNEL_VERSION=$(make kernelversion)
+        if grep -q "${KERNEL_VERSION}" /boot/grub2/grub.cfg; then
+            print_status "New kernel found in GRUB configuration"
+        else
+            print_warning "New kernel not found in GRUB configuration"
+            print_warning "You may need to manually select the kernel during boot"
+        fi
     elif command -v update-grub &> /dev/null; then
         update-grub
         print_status "GRUB updated"
