@@ -81,66 +81,13 @@ clean_build() {
 configure_kernel() {
     print_status "Configuring kernel..."
     
-    if [[ -f "$CONFIG_FILE" ]]; then
-        print_status "Using existing .config file"
-    else
-        print_status "Creating configuration from running kernel..."
-        # Copy config from running kernel for better compatibility
-        if [[ -f "/proc/config.gz" ]]; then
-            zcat /proc/config.gz > "$CONFIG_FILE"
-            print_status "Copied config from running kernel"
-        else
-            print_status "Creating default configuration..."
-            make defconfig
-        fi
-    fi
+    # Use default configuration for maximum compatibility
+    print_status "Using default configuration..."
+    make defconfig
     
-    # Configure SUSE version for SLE15-SP6
-    print_status "Configuring SUSE version for SLE15-SP6..."
-    echo "CONFIG_SUSE_KERNEL=y" >> "$CONFIG_FILE"
-    echo "CONFIG_SUSE_PRODUCT_SLE=y" >> "$CONFIG_FILE"
-    echo "CONFIG_SUSE_PRODUCT_CODE=1" >> "$CONFIG_FILE"
-    echo "CONFIG_SUSE_VERSION=15" >> "$CONFIG_FILE"
-    echo "CONFIG_SUSE_PATCHLEVEL=6" >> "$CONFIG_FILE"
-    echo "CONFIG_SUSE_AUXRELEASE=0" >> "$CONFIG_FILE"
-    
-    # Enable deception framework
+    # Only enable the deception framework
     print_status "Enabling Deception Framework..."
     echo "CONFIG_DECEPTION_FRAMEWORK=y" >> "$CONFIG_FILE"
-    
-    # Optimize for VM deployment
-    print_status "Optimizing for VM deployment..."
-    echo "CONFIG_KVM_GUEST=y" >> "$CONFIG_FILE"
-    echo "CONFIG_HYPERVISOR_GUEST=y" >> "$CONFIG_FILE"
-    
-    # Disable debug for production
-    print_status "Disabling debug features for production..."
-    echo "CONFIG_DEBUG_KERNEL=n" >> "$CONFIG_FILE"
-    echo "CONFIG_DEBUG_INFO=n" >> "$CONFIG_FILE"
-    
-    # Essential filesystem and device drivers for VM
-    print_status "Enabling essential filesystem drivers..."
-    echo "CONFIG_EXT4_FS=y" >> "$CONFIG_FILE"
-    echo "CONFIG_XFS_FS=y" >> "$CONFIG_FILE"
-    echo "CONFIG_BTRFS_FS=y" >> "$CONFIG_FILE"
-    echo "CONFIG_OVERLAY_FS=y" >> "$CONFIG_FILE"
-    echo "CONFIG_DEVTMPFS=y" >> "$CONFIG_FILE"
-    echo "CONFIG_DEVTMPFS_MOUNT=y" >> "$CONFIG_FILE"
-    
-    # Essential device drivers
-    print_status "Enabling essential device drivers..."
-    echo "CONFIG_BLK_DEV_SD=y" >> "$CONFIG_FILE"
-    echo "CONFIG_SCSI=y" >> "$CONFIG_FILE"
-    echo "CONFIG_SCSI_VIRTIO=y" >> "$CONFIG_FILE"
-    echo "CONFIG_VIRTIO_BLK=y" >> "$CONFIG_FILE"
-    echo "CONFIG_VIRTIO_NET=y" >> "$CONFIG_FILE"
-    echo "CONFIG_VIRTIO=y" >> "$CONFIG_FILE"
-    
-    # Network drivers
-    print_status "Enabling network drivers..."
-    echo "CONFIG_NETDEVICES=y" >> "$CONFIG_FILE"
-    echo "CONFIG_NET_CORE=y" >> "$CONFIG_FILE"
-    echo "CONFIG_INET=y" >> "$CONFIG_FILE"
     
     print_status "Configuration completed"
 }
@@ -194,6 +141,28 @@ install_kernel() {
             print_error "Manual kernel installation failed"
             exit 1
         fi
+    fi
+    
+    # Create initramfs for the new kernel
+    print_status "Creating initramfs..."
+    INITRAMFS="/boot/initrd-${KERNEL_VERSION}"
+    if command -v dracut >/dev/null 2>&1; then
+        sudo dracut --force "$INITRAMFS" "$KERNEL_VERSION"
+        if [[ $? -eq 0 ]]; then
+            print_status "Initramfs created with dracut"
+        else
+            print_error "Failed to create initramfs with dracut"
+        fi
+    elif command -v mkinitrd >/dev/null 2>&1; then
+        sudo mkinitrd "$INITRAMFS" "$KERNEL_VERSION"
+        if [[ $? -eq 0 ]]; then
+            print_status "Initramfs created with mkinitrd"
+        else
+            print_error "Failed to create initramfs with mkinitrd"
+        fi
+    else
+        print_warning "No initramfs tool found - this may cause boot issues"
+        print_warning "Please install dracut or mkinitrd"
     fi
     
     print_status "Kernel installation completed"
