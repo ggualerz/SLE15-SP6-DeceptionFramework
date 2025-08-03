@@ -96,6 +96,15 @@ configure_kernel() {
     print_status "Enabling Deception Framework..."
     echo "CONFIG_DECEPTION_FRAMEWORK=y" >> "$CONFIG_FILE"
     
+    # Disable kernel signing to avoid certificate issues
+    print_status "Disabling kernel signing..."
+    echo "CONFIG_MODULE_SIG=n" >> "$CONFIG_FILE"
+    echo "CONFIG_MODULE_SIG_ALL=n" >> "$CONFIG_FILE"
+    echo "CONFIG_MODULE_SIG_SHA256=n" >> "$CONFIG_FILE"
+    echo "CONFIG_MODULE_SIG_HASH=n" >> "$CONFIG_FILE"
+    echo "CONFIG_SECURITY_LOCKDOWN_LSM=n" >> "$CONFIG_FILE"
+    echo "CONFIG_SECURITY_LOCKDOWN_LSM_EARLY=n" >> "$CONFIG_FILE"
+    
     print_status "Configuration completed"
 }
 
